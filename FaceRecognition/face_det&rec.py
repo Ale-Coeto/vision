@@ -54,9 +54,13 @@ process_imgs()
 # Capture video from webcam
 cap = cv2.VideoCapture(1)
 i = 0
+xc = 0
+yc = 0
+center = [1920/2, 1080/2]
 
 # Only process one frame out of every 2
 process_this_frame = True
+
 while(True):
     ret, frame = cap.read()
     
@@ -73,7 +77,7 @@ while(True):
         for face_encoding in face_encodings:
 
             # See if the face is a match for the known face(s)
-            matches = face_recognition.compare_faces(face_encoding, people_encodings, 0.7)
+            matches = face_recognition.compare_faces(face_encoding, people_encodings, 0.6)
             name = "Unknown"
 
             face_distances = face_recognition.face_distance(people_encodings, face_encoding)
@@ -109,14 +113,17 @@ while(True):
             new_dir = f"{folder}/{new_name}"
             cv2.imwrite(new_dir,result)
             process_img(new_name)
-            
 
+           
+            
             print(new_name)
             
             i = i+1
 
         # Draw a box around the face
         cv2.rectangle(frame, (left, top), (right, bottom), (0, 0, 255), 2)
+        xc = left 
+        yc = top
 
         # Draw a label with a name below the face
         cv2.rectangle(frame, (left, bottom - 35), (right, bottom), (0, 0, 255), cv2.FILLED)
@@ -126,12 +133,17 @@ while(True):
         
     process_this_frame = not process_this_frame
     
+    
+    print(xc, ", ", yc)
+   
     # Display the resulting image
     cv2.imshow('Video', frame)
     # cv2.waitKey(1)
     # Hit 'q' on the keyboard to quit!
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
+
+# 1080, 1920
 
 
 cap.release()
