@@ -56,7 +56,9 @@ cap = cv2.VideoCapture(1)
 i = 0
 xc = 0
 yc = 0
+area = 0
 center = [1920/2, 1080/2]
+best_area = 185000
 
 # Only process one frame out of every 2
 process_this_frame = True
@@ -97,6 +99,7 @@ while(True):
         right *= 4
         bottom *= 4
         left *= 4
+        
     
 
         if process_this_frame and name == "Unknown":
@@ -122,8 +125,9 @@ while(True):
 
         # Draw a box around the face
         cv2.rectangle(frame, (left, top), (right, bottom), (0, 0, 255), 2)
-        xc = left 
-        yc = top
+        xc = left + (right - left)/2
+        yc = top + (top - bottom)/2
+        area = (right-left)*(bottom-top)
 
         # Draw a label with a name below the face
         cv2.rectangle(frame, (left, bottom - 35), (right, bottom), (0, 0, 255), cv2.FILLED)
@@ -133,8 +137,16 @@ while(True):
         
     process_this_frame = not process_this_frame
     
+    difx = xc - center[0] 
+    dify = center[1] - yc
+    max_degree = 30
+
+    print(area)
     
-    print(xc, ", ", yc)
+
+    print(difx*max_degree/center[0], ", ", dify*max_degree/center[1])
+
+   # print(xc, ", ", yc)
    
     # Display the resulting image
     cv2.imshow('Video', frame)
@@ -149,3 +161,4 @@ while(True):
 cap.release()
 cv2.destroyAllWindows()
 print("Hello World!")
+
