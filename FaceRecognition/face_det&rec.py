@@ -3,6 +3,9 @@ import face_recognition
 import numpy as np
 import os
 
+TRACK_THRESHOLD = 70
+AREA_THRESHOLD = 120000
+
 # Load images
 random = face_recognition.load_image_file("known_people/random.png")
 
@@ -20,6 +23,8 @@ people_encodings = [
 people_names = [
     "random"
 ]
+
+
 
 # Make encodings of known people images
 folder = "known_people"
@@ -62,6 +67,7 @@ best_area = 185000
 
 # Only process one frame out of every 2
 process_this_frame = True
+detected_faces = []
 
 while(True):
     ret, frame = cap.read()
@@ -70,69 +76,108 @@ while(True):
         # Resize frame of video to 1/4 size for faster face recognition processing
         small_frame = cv2.resize(frame, (0, 0), fx=0.25, fy=0.25)
         
+        
         # Find all the faces and face encodings in the current frame of video
         face_locations = face_recognition.face_locations(small_frame)
         face_encodings = face_recognition.face_encodings(small_frame, face_locations)
 
+        for (top, right, bottom, left) in face_locations:
+            
+            if (right-left)*(bottom-top) > best_area:
+                best_area = (right-left)*(bottom-top)
+                center = [(right+left)/2, (bottom+top)/2]
+
+
         # Check each encoding found
         face_names = []
-        for face_encoding in face_encodings:
+        
+        for face_encoding, location in zip(face_encodings, face_locations):
+            # print("l____",location[0])
+            
+
+            flag = False
+            print("detected: ", len(detected_faces))
+            for detected in detected_faces:
+                centerx = (location[3] + (location[1] - location[3])/2)*4
+                centery = (location[0] + (location[0] - location[2])/2)*4
+
+                # print("detected: ", detected["y"], "center: ", centery, "diff: ", abs(detected["y"] - centery))
+
+                if (abs(detected["x"] - centerx) < TRACK_THRESHOLD) and (abs(detected["y"] - centery) < TRACK_THRESHOLD):
+                    name = detected["name"]
+                    flag = True
+                    # print("same")
+                    break
+
+                # x = 50, new x = 55, 50-55 = 5, 
+            if not flag:
+                name = "Unknown"
 
             # See if the face is a match for the known face(s)
-            matches = face_recognition.compare_faces(face_encoding, people_encodings, 0.6)
-            name = "Unknown"
+                matches = face_recognition.compare_faces(face_encoding, people_encodings, 0.6)
+                
 
-            face_distances = face_recognition.face_distance(people_encodings, face_encoding)
-            best_match_index = np.argmin(face_distances)
+                face_distances = face_recognition.face_distance(people_encodings, face_encoding)
+                best_match_index = np.argmin(face_distances)
 
-            if matches[best_match_index]:
-                name = people_names[best_match_index]
+                if matches[best_match_index]:
+                    name = people_names[best_match_index]
             
                 
-            face_names.append(name)
-
-
-
+            face_names.append([name,flag])
+            
+    detected_faces = []
     # Display the results
     for (top, right, bottom, left), name in zip(face_locations, face_names):
         top *= 4
         right *= 4
         bottom *= 4
         left *= 4
+        area = (right-left)*(bottom-top)
+        # print(area)
         
     
-
-        if process_this_frame and name == "Unknown":
-            print("Unknown")
+        if process_this_frame and name[0] == "Unknown" and area > AREA_THRESHOLD:
+            # print("Unknown")
+            # cv2.rectangle(frame, (left, top), (right, bottom), (0, 255, 0), 2)
             
             left = max(left - 50,0)
             right = right + 50
             top = max(0,top - 50)
             bottom = bottom + 50
             result = frame[top:bottom, left:right]
-            new_name = input("Enter name: ")
 
+            new_name = input("Enter name: ")
+            name[0] = new_name
             new_name = f"{new_name}{i}.png"
             new_dir = f"{folder}/{new_name}"
             cv2.imwrite(new_dir,result)
             process_img(new_name)
-
-           
             
-            print(new_name)
+            # print(name[0])
             
             i = i+1
 
+
         # Draw a box around the face
-        cv2.rectangle(frame, (left, top), (right, bottom), (0, 0, 255), 2)
+        
         xc = left + (right - left)/2
         yc = top + (top - bottom)/2
         area = (right-left)*(bottom-top)
+        # print(xc)
+
+        detected_faces.append({"x": xc, "y": yc, "name": name[0]})
 
         # Draw a label with a name below the face
-        cv2.rectangle(frame, (left, bottom - 35), (right, bottom), (0, 0, 255), cv2.FILLED)
+        if name[1]:
+            cv2.rectangle(frame, (left, bottom - 35), (right, bottom), (255, 0, 0), cv2.FILLED)
+            cv2.rectangle(frame, (left, top), (right, bottom), (255, 0, 0), 2)
+        else:
+            cv2.rectangle(frame, (left, bottom - 35), (right, bottom), (0, 0, 255), cv2.FILLED)
+            cv2.rectangle(frame, (left, top), (right, bottom), (0, 0, 255), 2)
         font = cv2.FONT_HERSHEY_DUPLEX
-        cv2.putText(frame, name, (left + 6, bottom - 6), font, 1.0, (255, 255, 255), 1)
+
+        cv2.putText(frame, name[0], (left + 6, bottom - 6), font, 1.0, (255, 255, 255), 1)
         # Scale back up face locations since the frame we detected in was scaled to 1/4 size
         
     process_this_frame = not process_this_frame
@@ -141,10 +186,10 @@ while(True):
     dify = center[1] - yc
     max_degree = 30
 
-    print(area)
+    # print(area)
     
 
-    print(difx*max_degree/center[0], ", ", dify*max_degree/center[1])
+    # print(difx*max_degree/center[0], ", ", dify*max_degree/center[1])
 
    # print(xc, ", ", yc)
    
