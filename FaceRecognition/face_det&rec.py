@@ -2,6 +2,9 @@ import cv2
 import face_recognition
 import numpy as np
 import os
+import json
+from deepface import DeepFace
+# from deepface.deepface import DeepFace
 
 TRACK_THRESHOLD = 70
 AREA_THRESHOLD = 120000
@@ -24,8 +27,36 @@ people_names = [
     "random"
 ]
 
+def upadate_json(face_id, image):
 
+    # load json
+    f = open('identities.json')
+    data = json.load(f)
+    if face_id not in data:
+        try:
+            features_list = DeepFace.analyze(image, enforce_detection=True)
+            print(f"features list size is {len(features_list)}")
+            features = features_list[0]
+            age = features.get('age')
+            gender = features.get('dominant_gender')
+            race = features.get('dominant_race')
+            # emotions = features.get('dominant_emotion')
 
+            print("age ", age)
+
+            data[face_id] = {
+                "age": age,
+                "gender": gender,
+                "race": race
+            }
+
+            with open('identities.json', 'w') as outfile:
+                json.dump(data, outfile)
+        except:
+            print("error getting attributes")
+            # faces_tracked.remove(face_id)
+
+# upadate_json("random")
 # Make encodings of known people images
 folder = "known_people"
 def process_imgs():
@@ -58,7 +89,7 @@ process_imgs()
 
 # Capture video from webcam
 cap = cv2.VideoCapture(1)
-i = 0
+i = len(people)
 xc = 0
 yc = 0
 area = 0
@@ -68,6 +99,7 @@ best_area = 185000
 # Only process one frame out of every 2
 process_this_frame = True
 detected_faces = []
+
 
 while(True):
     ret, frame = cap.read()
@@ -96,7 +128,7 @@ while(True):
             
 
             flag = False
-            print("detected: ", len(detected_faces))
+            # print("detected: ", len(detected_faces))
             for detected in detected_faces:
                 centerx = (location[3] + (location[1] - location[3])/2)*4
                 centery = (location[0] + (location[0] - location[2])/2)*4
@@ -147,12 +179,14 @@ while(True):
             bottom = bottom + 50
             result = frame[top:bottom, left:right]
 
-            new_name = input("Enter name: ")
+            # new_name = input("Enter name: ")
+            # name[0] = new_name
+            new_name = f"face{i}.png"
             name[0] = new_name
-            new_name = f"{new_name}{i}.png"
             new_dir = f"{folder}/{new_name}"
             cv2.imwrite(new_dir,result)
             process_img(new_name)
+            upadate_json(new_name, result)
             
             # print(name[0])
             
@@ -188,8 +222,6 @@ while(True):
 
     # print(area)
     
-
-    # print(difx*max_degree/center[0], ", ", dify*max_degree/center[1])
 
    # print(xc, ", ", yc)
    
