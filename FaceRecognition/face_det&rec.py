@@ -113,6 +113,10 @@ while(True):
         face_locations = face_recognition.face_locations(small_frame)
         face_encodings = face_recognition.face_encodings(small_frame, face_locations)
 
+        xc = 0
+        yc = 0
+        
+
         for (top, right, bottom, left) in face_locations:
             
             if (right-left)*(bottom-top) > best_area:
@@ -216,14 +220,19 @@ while(True):
         
     process_this_frame = not process_this_frame
     
-    difx = xc - center[0] 
-    dify = center[1] - yc
+    if xc != 0:
+        difx = xc - center[0] 
+    
+    if yc != 0:
+        dify = center[1] - yc
+
     max_degree = 30
+    
 
     # print(area)
     
 
-   # print(xc, ", ", yc)
+    print(xc, ", ", yc)
    
     # Display the resulting image
     cv2.imshow('Video', frame)
@@ -238,4 +247,3 @@ while(True):
 cap.release()
 cv2.destroyAllWindows()
 print("Hello World!")
-
