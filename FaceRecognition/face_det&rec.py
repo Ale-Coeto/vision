@@ -107,6 +107,7 @@ while(True):
     if process_this_frame:
         # Resize frame of video to 1/4 size for faster face recognition processing
         small_frame = cv2.resize(frame, (0, 0), fx=0.25, fy=0.25)
+        center = [frame.shape[1]/2, frame.shape[0]/2]
         
         
         # Find all the faces and face encodings in the current frame of video
@@ -117,11 +118,11 @@ while(True):
         yc = 0
         
 
-        for (top, right, bottom, left) in face_locations:
+        # for (top, right, bottom, left) in face_locations:
             
-            if (right-left)*(bottom-top) > best_area:
-                best_area = (right-left)*(bottom-top)
-                center = [(right+left)/2, (bottom+top)/2]
+        #     if (right-left)*(bottom-top) > best_area:
+        #         best_area = (right-left)*(bottom-top)
+        #         center = [(right+left)/2, (bottom+top)/2]
 
 
         # Check each encoding found
@@ -200,7 +201,7 @@ while(True):
         # Draw a box around the face
         
         xc = left + (right - left)/2
-        yc = top + (top - bottom)/2
+        yc = top + (bottom - top)/2
         area = (right-left)*(bottom-top)
         # print(xc)
 
@@ -222,9 +223,13 @@ while(True):
     
     if xc != 0:
         difx = xc - center[0] 
+    else:
+        difx = 0
     
     if yc != 0:
         dify = center[1] - yc
+    else:
+        dify = 0
 
     max_degree = 30
     
@@ -232,7 +237,7 @@ while(True):
     # print(area)
     
 
-    print(xc, ", ", yc)
+    print(difx*30/center[0], ", ", dify*30/center[1])
    
     # Display the resulting image
     cv2.imshow('Video', frame)
