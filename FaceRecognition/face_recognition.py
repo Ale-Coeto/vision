@@ -6,7 +6,7 @@ import json
 from deepface import DeepFace
 from tqdm import tqdm
 from PIL import Image, ImageDraw
-# from deepface.deepface import DeepFace
+
 
 TRACK_THRESHOLD = 70
 AREA_THRESHOLD = 120000
@@ -19,8 +19,7 @@ random = face_recognition.load_image_file("known_people/random.png")
 # Encodings
 random_encodings = face_recognition.face_encodings(random)[0]
 
-
-# Name people and encodings
+# People, encoding and names
 people = [
     [random_encodings, "random"]
 ]
@@ -58,9 +57,8 @@ def upadate_json(face_id, image):
                 json.dump(data, outfile)
         except:
             print("error getting attributes")
-            # faces_tracked.remove(face_id)
 
-# upadate_json("random")
+
 # Make encodings of known people images
 folder = "known_people"
 def process_imgs():
@@ -98,7 +96,7 @@ xc = 0
 yc = 0
 area = 0
 center = [1920/2, 1080/2]
-best_area = 185000
+
 
 # Only process one frame out of every 2
 process_this_frame = True
@@ -121,14 +119,6 @@ while(True):
 
         xc = 0
         yc = 0
-        
-
-        # for (top, right, bottom, left) in face_locations:
-            
-        #     if (right-left)*(bottom-top) > best_area:
-        #         best_area = (right-left)*(bottom-top)
-        #         center = [(right+left)/2, (bottom+top)/2]
-
 
         # Check each encoding found
         face_names = []
@@ -154,14 +144,11 @@ while(True):
                     # print("same")
                     break
 
-                # x = 50, new x = 55, 50-55 = 5, 
             if not flag:
                 name = "Unknown"
 
             # See if the face is a match for the known face(s)
                 matches = face_recognition.compare_faces(face_encoding, people_encodings, 0.6)
-                
-
                 face_distances = face_recognition.face_distance(people_encodings, face_encoding)
                 best_match_index = np.argmin(face_distances)
 
@@ -183,8 +170,6 @@ while(True):
         
     
         if process_this_frame and name[0] == "Unknown" and area > AREA_THRESHOLD:
-            # print("Unknown")
-            # cv2.rectangle(frame, (left, top), (right, bottom), (0, 255, 0), 2)
             
             left = max(left - 50,0)
             right = right + 50
@@ -207,35 +192,13 @@ while(True):
 
         
         # Draw a box around the face
-        
         xc = left + (right - left)/2
         yc = top + (bottom - top)/2
         area = (right-left)*(bottom-top)
         # print(xc)
 
         detected_faces.append({"x": xc, "y": yc, "name": name[0]})
-
-        # # check for open mouth
-        # for face_landmarks in face_landmarks_list:
-        #     sorted_list_up = sorted(face_landmarks["top_lip"], key=lambda x: x[0])
-        #     sorted_list_down = sorted(face_landmarks["bottom_lip"], key=lambda x: x[0])
-
-
-        #     center_up = sorted_list_up[face_landmarks["top_lip"].__len__()//2]
-        #     center_down = sorted_list_down[face_landmarks["bottom_lip"].__len__()//2]
-
-        #     difference = abs(center_up[1] - center_down[1])
-        #     height = bottom - top
-        #     percentage = difference*100/height
-        #     print("Difference: {}".format(percentage))
-        #     if percentage > 10:
-        #         print("Open mouth")
-            
-        #     #Draw a point
-        #     cv2.circle(frame, (center_up[0]*4, center_up[1]*4), 2, (0, 0, 255), -1)
-        #     cv2.circle(frame, (center_down[0]*4, center_down[1]*4), 2, (0, 0, 255), -1)
                 
-
         # Draw a label with a name below the face
         if name[1]:
             cv2.rectangle(frame, (left, bottom - 35), (right, bottom), (255, 0, 0), cv2.FILLED)
@@ -270,7 +233,7 @@ while(True):
    
     # Display the resulting image
     cv2.imshow('Video', frame)
-    # cv2.waitKey(1)
+
     # Hit 'q' on the keyboard to quit!
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
