@@ -1,0 +1,5 @@
+ReID/model/ft_net_swin/net_last.pth
+ReID/model/ft_ResNet50/net_last.pth
+
+# *.pth
+ReID/__pycache__/
