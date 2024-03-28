@@ -3,19 +3,20 @@
 # # Load the model and run the tracker with a custom configuration file
 # model = YOLO('yolov8n.pt')
 # results = model.track(source="https://www.youtube.com/watch?v=bwJ-TNu0hGM", tracker='bytetrack.yaml')
-
+# Uses yolo reid as base to avoid use of reid model
+from PIL import Image
 import cv2
 from ultralytics import YOLO
 from reid_model import load_network, compare_images, extract_feature_from_img, get_structure
 import torch.nn as nn
-
+import torch
 # Load the YOLOv8 model
 model = YOLO('yolov8n.pt')
 
 # Open the video file
 video_path = "people_walking.mp4"
-cap = cv2.VideoCapture(video_path)
-# cap = cv2.VideoCapture(0)
+# cap = cv2.VideoCapture(video_path)
+cap = cv2.VideoCapture(0)
 
 people_tags = []
 people_ids = []
@@ -25,7 +26,7 @@ structure = get_structure()
 model_reid = load_network(structure)
 model_reid.classifier.classifier = nn.Sequential()
 
-use_gpu = True
+use_gpu = False
 if use_gpu:
     model_reid = model_reid.cuda()
 
@@ -44,8 +45,17 @@ while cap.isOpened():
         # Visualize the results on the frame
         annotated_frame = results[0].plot()
 
+        # if len(results[0]) == 0:
+        #     continue
+        
         boxes = results[0].boxes.xywh.cpu().tolist()
-        track_ids = results[0].boxes.id.int().cpu().tolist()
+        print(len(boxes))
+        track_ids = []
+        try:
+            track_ids = results[0].boxes.id.int().cpu().tolist()
+        except Exception as e:
+            # print(f"An error occurred: {e}")
+            track_ids = []
 
         for (box, track_id) in zip(boxes, track_ids):
             if track_id not in people_ids:
@@ -62,9 +72,11 @@ while cap.isOpened():
 
                 # Crop the image using the calculated coordinates
                 cropped_image = frame[y1:y2, x1:x2]
+                pil_image = Image.fromarray(cropped_image)
+                cv2.imshow('crp[;',cropped_image)
                 # new_feature = 0
                 with torch.no_grad():
-                    new_feature = extract_feature_from_img(cropped_image, model_reid)
+                    new_feature = extract_feature_from_img(pil_image, model_reid)
                 flag = False
 
                 for i, person_feature in enumerate(people_features):
@@ -85,6 +97,8 @@ while cap.isOpened():
                     people_tags.append(f"Person {track_id}")
                     people_features.append(new_feature)
                 
+        print(track_ids)
+        print(people_tags)
         print(people_ids)
         #draw results
         for (box, track_id) in zip(boxes, track_ids):

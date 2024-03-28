@@ -79,13 +79,21 @@ def load_network(network):
 
     save_path = os.path.join('./model',name,'net_%s.pth'%epoch)
     try:
-        network.load_state_dict(torch.load(save_path))
+        if use_gpu:
+            network.load_state_dict(torch.load(save_path))
+        else:
+            network.load_state_dict(torch.load(save_path, map_location=torch.device('cpu')))
     except: 
-        if torch.cuda.get_device_capability()[0]>6 and len(gpu_ids)==1 and int(version[0])>1: # should be >=7
+        if use_gpu and torch.cuda.get_device_capability()[0]>6 and len(gpu_ids)==1 and int(version[0])>1: # should be >=7
             print("Compiling model...")
             torch.set_float32_matmul_precision('high')
             network = torch.compile(network, mode="default", dynamic=True) # pytorch 2.0
-        network.load_state_dict(torch.load(save_path))
+        if use_gpu:
+            network.load_state_dict(torch.load(save_path))
+        else:
+            network.load_state_dict(torch.load(save_path, map_location=torch.device('cpu')))
+        
+# map_location=torch.device('cpu')
 
     return network
 
@@ -108,12 +116,12 @@ def extract_feature_from_img(image, model):
     # Extract features from the image
     model.eval()
     with torch.no_grad():
-        features = torch.zeros(1, linear_num).cuda() if torch.cuda.is_available() else torch.zeros(1, linear_num)
+        features = torch.zeros(1, linear_num).cuda() if use_gpu else torch.zeros(1, linear_num)
         for i in range(2):
             if i == 1:
                 # Apply horizontal flipping for augmentation
                 image = torch.flip(image, dims=[3])
-            input_img = Variable(image.cuda())
+            input_img = Variable(image.cuda()) if use_gpu else Variable(image)
             for scale in ms:
                 if scale != 1:
                     input_img = torch.nn.functional.interpolate(input_img, scale_factor=scale, mode='bicubic', align_corners=False)
@@ -125,7 +133,7 @@ def extract_feature_from_img(image, model):
         # features = features.cpu()
     return features.cpu()
 
-def compare_images(features1, features2, threshold=0.5):
+def compare_images(features1, features2, threshold=0.4):
     # Compute cosine similarity between feature vectors
     # features1_flat = features1.reshape(features1.shape[0], -1)
     # features2_flat = features2.reshape(features2.shape[0], -1)
@@ -149,12 +157,12 @@ def extract_feature_from_path(image_path, batchsize=32):
     # Extract features from the image
     model.eval()
     with torch.no_grad():
-        features = torch.zeros(1, linear_num).cuda() if torch.cuda.is_available() else torch.zeros(1, linear_num)
+        features = torch.zeros(1, linear_num).cuda() if use_gpu else torch.zeros(1, linear_num)
         for i in range(2):
             if i == 1:
                 # Apply horizontal flipping for augmentation
                 image = torch.flip(image, dims=[3])
-            input_img = Variable(image.cuda())
+            input_img = Variable(image.cuda()) if use_gpu else Variable(image)
             for scale in ms:
                 if scale != 1:
                     input_img = torch.nn.functional.interpolate(input_img, scale_factor=scale, mode='bicubic', align_corners=False)
@@ -167,21 +175,21 @@ def extract_feature_from_path(image_path, batchsize=32):
     return features.cpu()
 
 # Test
-print("Test")
-model_structure = get_structure()
-model = load_network(model_structure)
-model.classifier.classifier = nn.Sequential()
-if use_gpu:
-    model = model.cuda()
+# print("Test")
+# model_structure = get_structure()
+# model = load_network(model_structure)
+# model.classifier.classifier = nn.Sequential()
+# if use_gpu:
+#     model = model.cuda()
 
-with torch.no_grad():
-    features1 = extract_feature_from_path('one.jpg')
-    # gallery_feature = extract_feature(model,dataloaders['gallery'])
-    features2 = extract_feature_from_path('three.jpg')
-    # query_feature = extract_feature(model,dataloaders['query'])
-is_same_person = compare_images(features1, features2, threshold=0.7)
+# with torch.no_grad():
+#     features1 = extract_feature_from_path('one.jpg')
+#     # gallery_feature = extract_feature(model,dataloaders['gallery'])
+#     features2 = extract_feature_from_path('three.jpg')
+#     # query_feature = extract_feature(model,dataloaders['query'])
+# is_same_person = compare_images(features1, features2, threshold=0.7)
 
-if is_same_person:
-    print("The images are of the same person.")
-else:
-    print("The images are of different persons.")
+# if is_same_person:
+#     print("The images are of the same person.")
+# else:
+#     print("The images are of different persons.")
