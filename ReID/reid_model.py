@@ -1,4 +1,4 @@
-from model import ft_net, ft_net_swin, ft_net_swinv2, PCB
+from model import ft_net, ft_net_swin, ft_net_swinv2, PCB, ft_net_dense
 from torchvision import datasets, models, transforms
 import numpy as np
 import math
@@ -16,6 +16,7 @@ import torch.nn as nn
 version =  torch.__version__
 
 use_swin = False
+use_dense = True
 epoch = "last"
 linear_num = 512
 batch_size = 256
@@ -31,7 +32,7 @@ if use_swin:
     
 else:
     h, w = 256, 128
-    name = 'ft_ResNet50'
+    name = 'ft_net_dense'
 
 interpolation_mode = transforms.InterpolationMode.BICUBIC
 
@@ -57,11 +58,16 @@ if 'ibn' in config:
 if 'linear_num' in config:
     linear_num = config['linear_num']
 
+if linear_num <= 0 and (use_swin or use_dense):
+    linear_num = 1024
+
 stride = config['stride']
 
 def get_structure():
     if use_swin:
         model_structure = ft_net_swin(nclasses, stride = stride, linear_num=linear_num)
+    elif use_dense:
+        model_structure = ft_net_dense(nclasses, stride = stride, linear_num=linear_num)
     else:
         model_structure = ft_net(nclasses, stride = stride, ibn = ibn, linear_num=linear_num)
     
@@ -130,3 +136,52 @@ def compare_images(features1, features2, threshold=0.5):
         return True  # Images are considered to be of the same person
     else:
         return False  # Images are considered to be of different persons
+
+
+def extract_feature_from_path(image_path, batchsize=32):
+    # Load and preprocess the image
+    image = Image.open(image_path).convert('RGB')
+    # n, c, h, w = image.size()
+
+    image = data_transforms(image).unsqueeze(0)  # Add batch dimension
+    # ff = torch.FloatTensor(n,opt.linear_num).zero_().cuda()
+
+    # Extract features from the image
+    model.eval()
+    with torch.no_grad():
+        features = torch.zeros(1, linear_num).cuda() if torch.cuda.is_available() else torch.zeros(1, linear_num)
+        for i in range(2):
+            if i == 1:
+                # Apply horizontal flipping for augmentation
+                image = torch.flip(image, dims=[3])
+            input_img = Variable(image.cuda())
+            for scale in ms:
+                if scale != 1:
+                    input_img = torch.nn.functional.interpolate(input_img, scale_factor=scale, mode='bicubic', align_corners=False)
+                outputs = model(input_img)
+                features += outputs
+
+        # Normalize features
+        features /= torch.norm(features, p=2, dim=1, keepdim=True)
+        # features = features.cpu()
+    return features.cpu()
+
+# Test
+print("Test")
+model_structure = get_structure()
+model = load_network(model_structure)
+model.classifier.classifier = nn.Sequential()
+if use_gpu:
+    model = model.cuda()
+
+with torch.no_grad():
+    features1 = extract_feature_from_path('one.jpg')
+    # gallery_feature = extract_feature(model,dataloaders['gallery'])
+    features2 = extract_feature_from_path('three.jpg')
+    # query_feature = extract_feature(model,dataloaders['query'])
+is_same_person = compare_images(features1, features2, threshold=0.7)
+
+if is_same_person:
+    print("The images are of the same person.")
+else:
+    print("The images are of different persons.")
