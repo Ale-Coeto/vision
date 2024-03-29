@@ -11,7 +11,9 @@ from torch.autograd import Variable
 import scipy.io
 from scipy.spatial.distance import cosine
 from tqdm import tqdm
+import mediapipe as mp
 import torch.nn as nn
+import cv2 
 
 version =  torch.__version__
 
@@ -62,6 +64,84 @@ if linear_num <= 0 and (use_swin or use_dense):
     linear_num = 1024
 
 stride = config['stride']
+
+
+
+# Calling the solution for image drawing from MediaPipe
+mp_drawing = mp.solutions.drawing_utils
+mp_drawing_styles = mp.solutions.drawing_styles
+key_points = [11,12,23,24]
+
+
+def check_visibility(poseModel, image):
+    pose = poseModel
+    # Convert the image to RGB
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    # Process the image
+    results = pose.process(image)
+    # Check if the pose landmarks are detected
+    if results.pose_landmarks is not None:
+        # Get the x and y coordinates of the chest and face landmarks
+        chest_x = results.pose_landmarks.landmark[11].x
+        chest_y = results.pose_landmarks.landmark[11].y
+        chest_visibility = results.pose_landmarks.landmark[11].visibility
+        # face_x = results.pose_landmarks.landmark[10].x
+        # face_y = results.pose_landmarks.landmark[10].y
+        # face_visibility = results.pose_landmarks.landmark[10].visibility
+        # Check if the chest and face are visible in the image (within the frame)
+        # draw all the landmarks on the image
+        mp_drawing = mp.solutions.drawing_utils
+        annotated_image = image.copy()
+        mp_drawing.draw_landmarks(annotated_image, results.pose_landmarks, mp.solutions.pose.POSE_CONNECTIONS)
+        # Convert the image back to BGR
+        annotated_image = cv2.cvtColor(annotated_image, cv2.COLOR_RGB2BGR)
+        # Display the annotated image
+        cv2.imshow("Annotated Image", annotated_image)
+
+        if (chest_x < 0 or chest_x > 1 or chest_y < 0 or chest_y > 1) and chest_visibility < 0.95:
+            print("Chest not visible")
+            return False
+        else:
+            print("Chest visible")
+            return True
+
+        # if (face_x < 0 or face_x > 1 or face_y < 0 or face_y > 1) and face_visibility < 0.95:
+        #     print("Face not visible")
+        # else:
+        #     print("Face visible")
+            
+        
+    else:
+        print("Pose landmarks not detected")
+    
+    print("-------------------------")
+
+def is_full_body(image):
+    with mp_pose.Pose(min_detection_confidence=0.5,
+        min_tracking_confidence=0.5) as pose:
+
+        results = pose.process(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+        if(results.pose_landmarks is None):
+            return 0
+        
+        annotated_image = image.copy()
+        annotated_image.flags.writeable = True
+        mp_drawing.draw_landmarks(
+            annotated_image,
+            results.pose_landmarks,
+            mp_pose.POSE_CONNECTIONS,
+            landmark_drawing_spec=mp_drawing_styles.get_default_pose_landmarks_style())
+        cv2.imshow('MediaPipe Pose', annotated_image)
+        # print(results.pose_landmarks)
+        for key_point in key_points:
+            x = results.pose_landmarks.landmark[key_point].x
+            y = results.pose_landmarks.landmark[key_point].y
+
+            # if results.pose_landmarks.landmark[key_point].visibility < 0.7:
+            #     return False
+        
+        # print(len(results.pose_landmarks.landmark))
+        return True
 
 def get_structure():
     if use_swin:
@@ -135,8 +215,9 @@ def extract_feature_from_img(image, model):
 
 def compare_images(features1, features2, threshold=0.4):
     # Compute cosine similarity between feature vectors
-    # features1_flat = features1.reshape(features1.shape[0], -1)
-    # features2_flat = features2.reshape(features2.shape[0], -1)
+    if features1.ndim != 1 or features2.ndim != 1:
+        return False
+
     similarity_score = 1 - cosine(features1, features2)
     
     # Compare similarity score with threshold

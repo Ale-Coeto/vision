@@ -1,15 +1,20 @@
 from PIL import Image
 import cv2
 from ultralytics import YOLO
-from reid_model import load_network, compare_images, extract_feature_from_img, get_structure
+from reid_model import check_visibility, load_network, compare_images, extract_feature_from_img, is_full_body, get_structure
 import torch.nn as nn
 import torch
 import tqdm
+import mediapipe as mp
 
-pbar = tqdm.tqdm(total=4, desc="Loading models")
+pbar = tqdm.tqdm(total=5, desc="Loading models")
 
 # Load the YOLOv8 model
 model = YOLO('yolov8n.pt')
+pbar.update(1)
+
+# Load media pipe model
+pose_model = mp.solutions.pose.Pose(min_detection_confidence=0.8) 
 pbar.update(1)
 
 # Load the ReID model
@@ -26,6 +31,7 @@ pbar.close()
 
 # Open the video file or use camera
 USE_CAMERA = True
+THRESHOLD = 15
 if USE_CAMERA:
     cap = cv2.VideoCapture(0)
 else:
@@ -43,6 +49,7 @@ while cap.isOpened():
 
     # Read a frame from the video
     success, frame = cap.read()
+    width = frame.shape[1]
 
     if success:
         
@@ -58,6 +65,7 @@ while cap.isOpened():
         except Exception as e:
             track_ids = []
 
+        false_detections = []
         # Check if there is a new id
         for (box, track_id) in zip(boxes, track_ids):
             if track_id not in prev_ids:
@@ -75,6 +83,13 @@ while cap.isOpened():
                 # Crop the image 
                 cropped_image = frame[y1:y2, x1:x2]
                 pil_image = Image.fromarray(cropped_image)
+                person = check_visibility(pose_model,cropped_image)
+                # print("person", person)
+
+                if not person or x1 <= THRESHOLD or x2 >= width - THRESHOLD:
+                    false_detections.append(track_id)
+                    continue
+
                 # cv2.imshow('crpd',cropped_image)
 
                 # Get feature
@@ -84,7 +99,8 @@ while cap.isOpened():
 
                 # Check if there is a match with seen people
                 for i, person_feature in enumerate(people_features):
-
+                    # if person_feature is None:
+                    #     continue
                     #Compare features
                     match = compare_images(person_feature, new_feature)
 
@@ -106,9 +122,14 @@ while cap.isOpened():
         print(track_ids)
         print(people_tags)
         print(people_ids)
-        
+        prev_ids = []
         # Draw results
         for (box, track_id) in zip(boxes, track_ids):
+            if track_id in false_detections:
+                continue
+
+            prev_ids.append(track_id)
+
             x = int(box[0])
             y = int(box[1])
             w = int(box[2])
@@ -122,7 +143,7 @@ while cap.isOpened():
 
         # Display the annotated frame
         cv2.imshow("YOLOv8 Tracking", frame)
-        prev_ids = track_ids
+        # prev_ids = track_ids
 
         # Break the loop if 'q' is pressed
         if cv2.waitKey(1) & 0xFF == ord("q"):
