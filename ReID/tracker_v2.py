@@ -30,12 +30,12 @@ if use_gpu:
 pbar.close()
 
 # Open the video file or use camera
-USE_CAMERA = True
-THRESHOLD = 15
+USE_CAMERA = False
+THRESHOLD = 1
 if USE_CAMERA:
     cap = cv2.VideoCapture(0)
 else:
-    video_path = "people_walking.mp4"
+    video_path = "cp.mp4"
     cap = cv2.VideoCapture(video_path)
 
 # Initialize lists to store information about people
@@ -83,7 +83,8 @@ while cap.isOpened():
                 # Crop the image 
                 cropped_image = frame[y1:y2, x1:x2]
                 pil_image = Image.fromarray(cropped_image)
-                person = check_visibility(pose_model,cropped_image)
+                # person = check_visibility(pose_model,cropped_image)
+                person = True
                 # print("person", person)
 
                 if not person or x1 <= THRESHOLD or x2 >= width - THRESHOLD:
