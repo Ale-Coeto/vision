@@ -36,10 +36,10 @@ else:
     h, w = 256, 128
     name = 'ft_net_dense'
 
-interpolation_mode = transforms.InterpolationMode.BICUBIC
+# interpolation_mode = transforms.InterpolationMode.BICUBIC
 
 data_transforms = transforms.Compose([
-        transforms.Resize((h, w), interpolation=interpolation_mode),
+        transforms.Resize((h, w)),
         transforms.ToTensor(),
         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 
@@ -154,25 +154,19 @@ def get_structure():
     return model_structure
     
 def load_network(network):
-    
-    # netword = model_structure
-
-    save_path = os.path.join('./model',name,'net_%s.pth'%epoch)
+    save_path = os.path.join('./model', name, 'net_%s.pth' % epoch)
     try:
-        if use_gpu:
-            network.load_state_dict(torch.load(save_path))
-        else:
-            network.load_state_dict(torch.load(save_path, map_location=torch.device('cpu')))
-    except: 
-        if use_gpu and torch.cuda.get_device_capability()[0]>6 and len(gpu_ids)==1 and int(version[0])>1: # should be >=7
+        network.load_state_dict(torch.load(save_path, map_location=torch.device('cpu')))
+    except Exception as e:
+        if torch.cuda.is_available() and torch.cuda.get_device_capability()[0] > 6 and len(gpu_ids) == 1 and int(version[0]) > 1:
             print("Compiling model...")
-            torch.set_float32_matmul_precision('high')
-            network = torch.compile(network, mode="default", dynamic=True) # pytorch 2.0
-        if use_gpu:
-            network.load_state_dict(torch.load(save_path))
-        else:
-            network.load_state_dict(torch.load(save_path, map_location=torch.device('cpu')))
-        
+            if int(version[0]) >= 2:
+                torch.set_float32_matmul_precision('high')
+                network = torch.compile(network, mode="default", dynamic=True)
+        network.load_state_dict(torch.load(save_path, map_location=torch.device('cpu')))
+
+    return network
+
 # map_location=torch.device('cpu')
 
     return network
@@ -185,38 +179,75 @@ def fliplr(img):
 
 
 def extract_feature_from_img(image, model):
-    batchsize=32
     # Load and preprocess the image
-    # image = Image.open(image_path).convert('RGB')
+    # image = Image.open(image).convert('RGB')
     # n, c, h, w = image.size()
 
-    image = data_transforms(image).unsqueeze(0)  # Add batch dimension
+    image = data_transforms(image)  # Add batch dimension
     # ff = torch.FloatTensor(n,opt.linear_num).zero_().cuda()
 
     # Extract features from the image
     model.eval()
     with torch.no_grad():
-        features = torch.zeros(1, linear_num).cuda() if use_gpu else torch.zeros(1, linear_num)
+        features = torch.zeros(linear_num).cuda() if use_gpu else torch.zeros(linear_num)
         for i in range(2):
             if i == 1:
                 # Apply horizontal flipping for augmentation
-                image = torch.flip(image, dims=[3])
-            input_img = Variable(image.cuda()) if use_gpu else Variable(image)
+                image = torch.flip(image, dims=[2])
+            input_img = image.unsqueeze(0)
+            # if use_gpu:
+            #     input_img = Variable(image.cuda())
+            # else:
+            #     input_img = Variable(image)
             for scale in ms:
                 if scale != 1:
                     input_img = torch.nn.functional.interpolate(input_img, scale_factor=scale, mode='bicubic', align_corners=False)
                 outputs = model(input_img)
-                features += outputs
+                features += outputs.squeeze()
 
         # Normalize features
-        features /= torch.norm(features, p=2, dim=1, keepdim=True)
+        features /= torch.norm(features, p=2, dim=0)
         # features = features.cpu()
     return features.cpu()
 
-def compare_images(features1, features2, threshold=0.4):
+
+
+def extract_feature_from_path(image_path, model):
+    # Load and preprocess the image
+    image = Image.open(image_path).convert('RGB')
+    # n, c, h, w = image.size()
+
+    image = data_transforms(image)  # Add batch dimension
+    # ff = torch.FloatTensor(n,opt.linear_num).zero_().cuda()
+
+    # Extract features from the image
+    model.eval()
+    with torch.no_grad():
+        features = torch.zeros(linear_num).cuda() if use_gpu else torch.zeros(linear_num)
+        for i in range(2):
+            if i == 1:
+                # Apply horizontal flipping for augmentation
+                image = torch.flip(image, dims=[2])
+            input_img = image.unsqueeze(0)
+            # if use_gpu:
+            #     input_img = Variable(image.cuda())
+            # else:
+            #     input_img = Variable(image)
+            for scale in ms:
+                if scale != 1:
+                    input_img = torch.nn.functional.interpolate(input_img, scale_factor=scale, mode='bicubic', align_corners=False)
+                outputs = model(input_img)
+                features += outputs.squeeze()
+
+        # Normalize features
+        features /= torch.norm(features, p=2, dim=0)
+        # features = features.cpu()
+    return features.cpu()
+
+def compare_images(features1, features2, threshold=0.5):
     # Compute cosine similarity between feature vectors
-    if features1.ndim != 1 or features2.ndim != 1:
-        return False
+    # if features1.ndim != 1 or features2.ndim != 1:
+    #     return False
 
     similarity_score = 1 - cosine(features1, features2)
     
@@ -227,36 +258,8 @@ def compare_images(features1, features2, threshold=0.4):
         return False  # Images are considered to be of different persons
 
 
-def extract_feature_from_path(image_path, batchsize=32):
-    # Load and preprocess the image
-    image = Image.open(image_path).convert('RGB')
-    # n, c, h, w = image.size()
-
-    image = data_transforms(image).unsqueeze(0)  # Add batch dimension
-    # ff = torch.FloatTensor(n,opt.linear_num).zero_().cuda()
-
-    # Extract features from the image
-    model.eval()
-    with torch.no_grad():
-        features = torch.zeros(1, linear_num).cuda() if use_gpu else torch.zeros(1, linear_num)
-        for i in range(2):
-            if i == 1:
-                # Apply horizontal flipping for augmentation
-                image = torch.flip(image, dims=[3])
-            input_img = Variable(image.cuda()) if use_gpu else Variable(image)
-            for scale in ms:
-                if scale != 1:
-                    input_img = torch.nn.functional.interpolate(input_img, scale_factor=scale, mode='bicubic', align_corners=False)
-                outputs = model(input_img)
-                features += outputs
-
-        # Normalize features
-        features /= torch.norm(features, p=2, dim=1, keepdim=True)
-        # features = features.cpu()
-    return features.cpu()
-
-# # Test
-# print("Test")
+# # # _______Test_______ # # #
+# # print("Test")
 # model_structure = get_structure()
 # model = load_network(model_structure)
 # model.classifier.classifier = nn.Sequential()
@@ -264,11 +267,11 @@ def extract_feature_from_path(image_path, batchsize=32):
 #     model = model.cuda()
 
 # with torch.no_grad():
-#     features1 = extract_feature_from_path('one.jpg')
+#     features1 = extract_feature_from_path('first_person.jpg', model)
 #     # gallery_feature = extract_feature(model,dataloaders['gallery'])
-#     features2 = extract_feature_from_path('three.jpg')
+#     features2 = extract_feature_from_path('last_person.jpg', model)
 #     # query_feature = extract_feature(model,dataloaders['query'])
-# is_same_person = compare_images(features1, features2, threshold=0.7)
+# is_same_person = compare_images(features1, features2)
 
 # if is_same_person:
 #     print("The images are of the same person.")

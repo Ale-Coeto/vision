@@ -30,12 +30,12 @@ if use_gpu:
 pbar.close()
 
 # Open the video file or use camera
-USE_CAMERA = False
+USE_CAMERA = True
 THRESHOLD = 1
 if USE_CAMERA:
-    cap = cv2.VideoCapture(0)
+    cap = cv2.VideoCapture(1)
 else:
-    video_path = "cp.mp4"
+    video_path = "cp_2.mp4"
     cap = cv2.VideoCapture(video_path)
 
 # Initialize lists to store information about people
@@ -49,9 +49,9 @@ while cap.isOpened():
 
     # Read a frame from the video
     success, frame = cap.read()
-    width = frame.shape[1]
 
     if success:
+        width = frame.shape[1]
         
         # Get the results from the YOLOv8 model
         results = model.track(frame, persist=True, tracker='bytetrack.yaml', classes=0, verbose=False) #could use botsort.yaml

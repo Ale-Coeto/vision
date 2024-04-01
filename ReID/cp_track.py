@@ -1,7 +1,7 @@
 from PIL import Image
 import cv2
 from ultralytics import YOLO
-from reid_model import check_visibility, load_network, compare_images, extract_feature_from_img, is_full_body, get_structure
+from reid_model import extract_feature_from_path, check_visibility, load_network, compare_images, extract_feature_from_img, is_full_body, get_structure
 import torch.nn as nn
 import torch
 
@@ -24,19 +24,22 @@ def track_video(model, reid_model, filevideo):
         height = int(video.get(cv2.CAP_PROP_FRAME_HEIGHT))
         width = int(video.get(cv2.CAP_PROP_FRAME_WIDTH))
         entities = {}
+        first_person = False    
+        print(frames)
         
-        for i_frame in range(frames):
+        for i_frame in range(20):
             ret, frame = video.read()
             if not ret:
                 continue
+            # if i_frame >= 10 and i_frame <= 90:
+            #     continue
 
             # Track all objects in the frame
-            results = model.track(source=frame, persist=True, classes=0, show=True)
+            results = model.track(source=frame, persist=True, classes=0, show=True, verbose=False)
             names = results[0].names
             boxes = results[0].boxes
             bboxes = results[0].boxes.xywh.cpu().tolist()
-            if not boxes.is_track:
-                continue
+            
             # Get the timestamp of the frame
             # seconds = i_frame / video.get(cv2.CAP_PROP_FPS)
             # timestamp = datetime.timestamp(time + timedelta(seconds=seconds))
@@ -45,8 +48,12 @@ def track_video(model, reid_model, filevideo):
             #     if id not in entities:
             #         entities[id] = dict(classes=[], bboxes=[], coordinates=[], timestamps=[])
 
+            print(i_frame)
+            if not boxes.is_track:
+                continue
 
-            if i_frame == 0:
+            # Features from the first person detected
+            if i_frame == 0 and not first_person:
                 x = int(bboxes[0][0])
                 y = int(bboxes[0][1])
                 w = int(bboxes[0][2])
@@ -56,24 +63,31 @@ def track_video(model, reid_model, filevideo):
                 x2 = int(x + w / 2)
                 y2 = int(y + h / 2)
                 cropped_image = frame[y1:y2, x1:x2]
+                img = Image.fromarray(cropped_image)
+                cv2.imwrite("first_person.jpg", cropped_image)
+                first_person = True
 
                 with torch.no_grad():
-                    first_feature = extract_feature_from_img(Image.fromarray(cropped_image), model_reid)
+                    first_feature = extract_feature_from_img(img, model_reid)
 
-        
-            if i_frame == frames - 1:
-                x = int(bboxes[0][0])
-                y = int(bboxes[0][1])
-                w = int(bboxes[0][2])
-                h = int(bboxes[0][3]) 
-                x1 = int(x - w / 2)
-                y1 = int(y - h / 2)
-                x2 = int(x + w / 2)
-                y2 = int(y + h / 2)
-                cropped_image = frame[y1:y2, x1:x2]
+            
 
-                with torch.no_grad():
-                    last_feature = extract_feature_from_img(Image.fromarray(cropped_image), model_reid)
+            # Features from the last person detected
+            x = int(bboxes[0][0])
+            y = int(bboxes[0][1])
+            w = int(bboxes[0][2])
+            h = int(bboxes[0][3]) 
+            x1 = int(x - w / 2)
+            y1 = int(y - h / 2)
+            x2 = int(x + w / 2)
+            y2 = int(y + h / 2)
+            cropped_image = frame[y1:y2, x1:x2]
+            img = Image.fromarray(cropped_image)
+            # cv2.imshow('A',img)
+            cv2.imwrite("last_person.jpg", cropped_image)
+
+            with torch.no_grad():
+                last_feature = extract_feature_from_img(img, model_reid)
 
             
             # _class = names[boxes.cls[i].int().tolist()]
@@ -88,8 +102,16 @@ def track_video(model, reid_model, filevideo):
             # entities[id]['bboxes'].append(bbox)
             # entities[id]['coordinates'].append(coord)
             # entities[id]['timestamps'].append(timestamp)
-            match = compare_images(first_feature, last_feature)
-
+                
+        match = compare_images(first_feature, last_feature)
+        print(match)
+        # first_feature = extract_feature_from_path('first_person.jpg', model)
+        # last_feature = extract_feature_from_path('last_person.jpg', model)
+        # match = compare_images(first_feature, last_feature)
+        if match:
+            print("Match")  
+        else:
+            print("No match")
             
 
         # TODO: Infer activity instead of assigning a random activity
@@ -109,13 +131,13 @@ def track_video(model, reid_model, filevideo):
         # return entities
 
 
-model = YOLO('yolov8l.pt')
+model = YOLO('yolov8n.pt')
 
 structure = get_structure()
 model_reid = load_network(structure)
 model_reid.classifier.classifier = nn.Sequential()
 
-use_gpu = True
+use_gpu = torch.cuda.is_available()
 if use_gpu:
     model_reid = model_reid.cuda()
 
