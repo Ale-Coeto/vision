@@ -255,7 +255,7 @@ def extract_feature_from_path(image_path, batchsize=32):
         # features = features.cpu()
     return features.cpu()
 
-# Test
+# # Test
 # print("Test")
 # model_structure = get_structure()
 # model = load_network(model_structure)
