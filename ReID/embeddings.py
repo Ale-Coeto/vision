@@ -4,6 +4,8 @@ from ultralytics import YOLO
 from reid_model import extract_feature_from_path, check_visibility, load_network, compare_images, extract_feature_from_img, is_full_body, get_structure
 import torch.nn as nn
 import torch
+import os
+import numpy as np
 
 
 def track_video(model, reid_model, filevideo):
@@ -18,6 +20,13 @@ def track_video(model, reid_model, filevideo):
             [dict]: a dictionary with person entities detected from the video
         """
 
+
+        out_path = os.path.join('test_embeddings','1'+'_{}.npy'.format("dense"))
+        if not os.path.exists("test_embeddings"):
+            os.makedirs("test_embeddings")
+
+        emb = []
+
         # print(filevideo)
         video = cv2.VideoCapture(filevideo)
         frames = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -26,6 +35,7 @@ def track_video(model, reid_model, filevideo):
         first_person = False    
         entities = {}
         print(frames)
+        
         
         for i_frame in range(20):
             ret, frame = video.read()
@@ -90,6 +100,7 @@ def track_video(model, reid_model, filevideo):
 
             with torch.no_grad():
                 last_feature = extract_feature_from_img(img, reid_model)
+                emb.append(last_feature)
                 print("Las person")
             
             # _class = names[boxes.cls[i].int().tolist()]
@@ -114,6 +125,9 @@ def track_video(model, reid_model, filevideo):
             print("Match")  
         else:
             print("No match")
+
+        embeddings = np.array(emb)
+        np.save(out_path,embeddings)
             
 
         # TODO: Infer activity instead of assigning a random activity

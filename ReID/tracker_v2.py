@@ -24,13 +24,14 @@ model_reid = load_network(structure)
 pbar.update(1)
 model_reid.classifier.classifier = nn.Sequential()
 pbar.update(1)
+
 use_gpu = torch.cuda.is_available()
 if use_gpu:
     model_reid = model_reid.cuda()
 pbar.close()
 
 # Open the video file or use camera
-USE_CAMERA = True
+USE_CAMERA = False
 THRESHOLD = 1
 if USE_CAMERA:
     cap = cv2.VideoCapture(1)

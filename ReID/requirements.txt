@@ -2,5 +2,9 @@ tqdm
 pretrainedmodels
 timm >= 0.6.0
 numpy
-efficientnet_pytorch
+pillow
+opencv-python
+ultralytics
+mediapipe
+
 # pip install torch==1.10 torchvision==0.11.1 -f https://download.pytorch.org/whl/cu111/torch_stable.html
